@@ -1,0 +1,57 @@
+# === Python Specific ===
+__pycache__/
+*.py[cod]
+*.pyo
+*.log
+*.sqlite3
+*.db
+*.egg-info/
+*.egg
+.env
+*.env
+*.cover
+.coverage
+.cache/
+.mypy_cache/
+pytest_cache/
+
+# === Virtual Environment ===
+venv/
+.venv/
+ENV/
+env/
+
+# === IDEs and Editors ===
+.vscode/
+.idea/
+*.swp
+*.swo
+*.bak
+*.tmp
+*.orig
+
+# === AWS/Cloud Specific ===
+.aws/
+*.pem
+*.key
+*.crt
+*.csv
+
+# === Terraform Specific ===
+*.tfstate
+*.tfstate.backup
+.terraform/
+terraform.tfvars
+
+# === Reports, Output Files ===
+*.csv
+*.json
+*.xml
+*.pdf
+
+# === OS Files ===
+.DS_Store
+Thumbs.db
+
+# === Git ===
+*.orig
