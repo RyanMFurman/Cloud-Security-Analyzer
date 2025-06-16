@@ -235,21 +235,40 @@ def identify_risks():
 
 def is_risky_rule(rule):
     """
-    Determines if a given rule is risky (open to 0.0.0.0/0 on common ports).
-    For testing purposes, expects a dict in the format of EC2 IpPermissions.
+    Determines if a given rule is risky (open to 0.0.0.0/0 or ::/0 on common risky ports or all ports open).
+    Expects a dict in the format of EC2 IpPermissions.
     """
-    cidrs = [r.get("CidrIp") for r in rule.get("IpRanges", [])]
-    open_to_world = "0.0.0.0/0" in cidrs
+    # Check IPv4 CIDR ranges
+    cidrs_v4 = [r.get("CidrIp") for r in rule.get("IpRanges", [])]
+    # Check IPv6 CIDR ranges
+    cidrs_v6 = [r.get("CidrIpv6") for r in rule.get("Ipv6Ranges", [])]
 
-    risky_ports = [22, 3389, 80, 443]
+    open_to_world_v4 = "0.0.0.0/0" in cidrs_v4
+    open_to_world_v6 = "::/0" in cidrs_v6
+    open_to_world = open_to_world_v4 or open_to_world_v6
+
+    risky_ports = [22, 3389, 80, 443, 53, 3306]  # Added 53 (DNS), 3306 (MySQL)
     from_port = rule.get("FromPort")
     to_port = rule.get("ToPort")
+    ip_protocol = rule.get("IpProtocol", "").lower()
 
-    risky_port = any(
-        from_port <= port <= to_port for port in risky_ports
-    ) if from_port is not None and to_port is not None else False
+    # If protocol is -1, it means all protocols/ports open
+    if ip_protocol == "-1" and open_to_world:
+        return True
 
-    return open_to_world and risky_port
+    # If ports are None (meaning all ports for the protocol are open)
+    if from_port is None and to_port is None and open_to_world:
+        return True
+
+    # Check if any risky port falls within the port range
+    if from_port is not None and to_port is not None:
+        for port in risky_ports:
+            if from_port <= port <= to_port and open_to_world:
+                return True
+
+    return False
+
+
 
 if __name__ == "__main__":
     """Main execution flow"""
