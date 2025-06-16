@@ -225,6 +225,32 @@ def print_network_topology(findings: List[SecurityFinding]):
     except Exception as e:
         logging.error(f"Topology generation failed: {str(e)}")
 
+def identify_risks():
+    analyzer = AWSSecurityAnalyzer()
+    findings = []
+    findings.extend(analyzer.find_over_permissive_rules())
+    findings.extend(analyzer.find_unused_security_groups())
+    findings.extend(analyzer.find_over_permissive_iam_policies())
+    return findings
+
+def is_risky_rule(rule):
+    """
+    Determines if a given rule is risky (open to 0.0.0.0/0 on common ports).
+    For testing purposes, expects a dict in the format of EC2 IpPermissions.
+    """
+    cidrs = [r.get("CidrIp") for r in rule.get("IpRanges", [])]
+    open_to_world = "0.0.0.0/0" in cidrs
+
+    risky_ports = [22, 3389, 80, 443]
+    from_port = rule.get("FromPort")
+    to_port = rule.get("ToPort")
+
+    risky_port = any(
+        from_port <= port <= to_port for port in risky_ports
+    ) if from_port is not None and to_port is not None else False
+
+    return open_to_world and risky_port
+
 if __name__ == "__main__":
     """Main execution flow"""
     print("=== AWS Security Analyzer ===")
