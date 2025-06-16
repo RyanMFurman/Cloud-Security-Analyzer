@@ -42,6 +42,8 @@ env/
 *.tfstate.backup
 .terraform/
 terraform.tfvars
+.terraform.tfstate.lock.info
+.terraform.lock.hcl
 
 # === Reports, Output Files ===
 *.csv
