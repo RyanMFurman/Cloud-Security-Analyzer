@@ -1,113 +1,120 @@
+import boto3
 from typing import List
 from dataclasses import dataclass
+from src.analyzers.aws_analyzer import SecurityFinding
 
-@dataclass
-class NetworkFinding:
-    resource_id: str
-    issue: str
-    severity: str
+# --- Analysis Functions ---
 
-def analyze_vpc(vpc: dict) -> List[NetworkFinding]:
+def analyze_vpc(vpc: dict) -> List[SecurityFinding]:
     findings = []
     vpc_id = vpc.get("VpcId", "unknown")
     cidr_block = vpc.get("CidrBlock", "")
     if cidr_block.startswith("10."):
-        findings.append(NetworkFinding(
+        findings.append(SecurityFinding(
             resource_id=vpc_id,
-            issue=f"VPC CIDR block is large: {cidr_block}",
-            severity="medium"
+            description=f"VPC CIDR block is large: {cidr_block}",
+            risk_level="MEDIUM",
+            recommendation="Consider narrowing CIDR range if possible"
         ))
     return findings
 
-def analyze_subnet(subnet: dict) -> List[NetworkFinding]:
+def analyze_subnet(subnet: dict) -> List[SecurityFinding]:
     findings = []
     subnet_id = subnet.get("SubnetId", "unknown")
     if subnet.get("MapPublicIpOnLaunch") is True:
-        findings.append(NetworkFinding(
+        findings.append(SecurityFinding(
             resource_id=subnet_id,
-            issue="Subnet is public (MapPublicIpOnLaunch=True)",
-            severity="high"
+            description="Subnet is public (MapPublicIpOnLaunch=True)",
+            risk_level="HIGH",
+            recommendation="Restrict public IP mapping unless necessary"
         ))
     return findings
 
-def analyze_route_table(route_table: dict) -> List[NetworkFinding]:
+def analyze_route_table(route_table: dict) -> List[SecurityFinding]:
     findings = []
     rt_id = route_table.get("RouteTableId", "unknown")
     routes = route_table.get("Routes", [])
 
     for route in routes:
         dest_cidr = route.get("DestinationCidrBlock", "")
+        dest_cidr_ipv6 = route.get("DestinationIpv6CidrBlock", "")
         gateway_id = route.get("GatewayId", "")
         nat_gw_id = route.get("NatGatewayId", "")
 
-        if dest_cidr == "0.0.0.0/0":
+        if dest_cidr == "0.0.0.0/0" or dest_cidr_ipv6 == "::/0":
             if gateway_id.startswith("igw-"):
-                findings.append(NetworkFinding(
+                findings.append(SecurityFinding(
                     resource_id=rt_id,
-                    issue="Route table has default route to Internet Gateway (public subnet)",
-                    severity="high"
+                    description="Route table has default route to Internet Gateway (public subnet)",
+                    risk_level="HIGH",
+                    recommendation="Limit default route to trusted resources"
                 ))
             elif nat_gw_id:
-                findings.append(NetworkFinding(
+                findings.append(SecurityFinding(
                     resource_id=rt_id,
-                    issue="Route table has default route to NAT Gateway (private subnet with outbound internet)",
-                    severity="medium"
+                    description="Route table has default route to NAT Gateway (private subnet with outbound internet)",
+                    risk_level="MEDIUM",
+                    recommendation="Ensure NAT routing is secured and monitored"
                 ))
             else:
-                findings.append(NetworkFinding(
+                findings.append(SecurityFinding(
                     resource_id=rt_id,
-                    issue="Route table has default route to unknown target",
-                    severity="medium"
+                    description="Route table has default route to unknown target",
+                    risk_level="MEDIUM",
+                    recommendation="Verify unknown routing targets"
                 ))
-
     return findings
 
-def analyze_internet_gateway(internet_gateway: dict) -> List[NetworkFinding]:
+def analyze_internet_gateway(internet_gateway: dict) -> List[SecurityFinding]:
     findings = []
     igw_id = internet_gateway.get("InternetGatewayId", "unknown")
     attachments = internet_gateway.get("Attachments", [])
 
     if not attachments:
-        findings.append(NetworkFinding(
+        findings.append(SecurityFinding(
             resource_id=igw_id,
-            issue="Internet Gateway is not attached to any VPC",
-            severity="high"
+            description="Internet Gateway is not attached to any VPC",
+            risk_level="HIGH",
+            recommendation="Delete unattached IGWs to reduce surface area"
         ))
     else:
         for attach in attachments:
             state = attach.get("State", "")
             vpc_id = attach.get("VpcId", "unknown")
             if state != "available":
-                findings.append(NetworkFinding(
+                findings.append(SecurityFinding(
                     resource_id=igw_id,
-                    issue=f"Internet Gateway attached to VPC {vpc_id} is in state '{state}'",
-                    severity="medium"
+                    description=f"Internet Gateway attached to VPC {vpc_id} is in state '{state}'",
+                    risk_level="MEDIUM",
+                    recommendation="Investigate IGWs not in 'available' state"
                 ))
     return findings
 
-def analyze_nat_gateway(nat_gateway: dict) -> List[NetworkFinding]:
+def analyze_nat_gateway(nat_gateway: dict) -> List[SecurityFinding]:
     findings = []
     nat_id = nat_gateway.get("NatGatewayId", "unknown")
     state = nat_gateway.get("State", "")
     subnet_id = nat_gateway.get("SubnetId", "unknown")
 
     if state != "available":
-        findings.append(NetworkFinding(
+        findings.append(SecurityFinding(
             resource_id=nat_id,
-            issue=f"NAT Gateway in subnet {subnet_id} is in state '{state}'",
-            severity="medium"
+            description=f"NAT Gateway in subnet {subnet_id} is in state '{state}'",
+            risk_level="MEDIUM",
+            recommendation="Verify NAT Gateway deployment state"
         ))
 
     addresses = nat_gateway.get("NatGatewayAddresses", [])
     if not addresses:
-        findings.append(NetworkFinding(
+        findings.append(SecurityFinding(
             resource_id=nat_id,
-            issue="NAT Gateway has no associated Elastic IP address",
-            severity="high"
+            description="NAT Gateway has no associated Elastic IP address",
+            risk_level="HIGH",
+            recommendation="Ensure NAT Gateway has valid public IPs"
         ))
     return findings
 
-def analyze_network_acl(network_acl: dict) -> List[NetworkFinding]:
+def analyze_network_acl(network_acl: dict) -> List[SecurityFinding]:
     findings = []
     acl_id = network_acl.get("NetworkAclId", "unknown")
     entries = network_acl.get("Entries", [])
@@ -119,14 +126,15 @@ def analyze_network_acl(network_acl: dict) -> List[NetworkFinding]:
 
         if rule_action == "allow" and cidr_block == "0.0.0.0/0":
             direction = "egress" if egress else "ingress"
-            findings.append(NetworkFinding(
+            findings.append(SecurityFinding(
                 resource_id=acl_id,
-                issue=f"Network ACL allows all traffic ({direction})",
-                severity="high"
+                description=f"Network ACL allows all traffic ({direction})",
+                risk_level="HIGH",
+                recommendation="Restrict overly permissive ACL rules"
             ))
     return findings
 
-def analyze_network(resources: dict) -> List[NetworkFinding]:
+def analyze_network(resources: dict) -> List[SecurityFinding]:
     findings = []
     for vpc in resources.get("Vpcs", []):
         findings.extend(analyze_vpc(vpc))
