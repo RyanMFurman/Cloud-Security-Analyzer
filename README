@@ -1,0 +1,63 @@
+# ☁️ Cloud Security Analyzer
+
+A cloud-native network visibility tool designed to analyze AWS infrastructure for misconfigurations and generate actionable security findings — fully integrated with live Terraform-deployed infrastructure.
+
+---
+
+## 🔍 What It Does
+
+This tool scans your AWS environment to detect insecure network configurations such as:
+
+- Open ports to the internet (e.g., SSH on port 22)
+- Unused security groups
+- Public subnets
+- Overly permissive network ACLs
+- Misconfigured route tables
+- Unattached internet gateways or NAT gateways in error states
+
+It generates a clear CSV report and console summary highlighting risks by severity (HIGH, MEDIUM, LOW).
+
+---
+
+## 🧠 Why This Matters
+
+Misconfigured cloud networking is one of the top causes of data breaches.
+
+This tool provides visibility into your AWS networking resources and offers recommendations aligned with best practices — especially helpful for:
+
+- Cloud engineers securing VPCs
+- DevOps teams validating IaC deployments
+- Security analysts auditing AWS environments
+
+---
+
+## 🏗️ Architecture Diagram
+
+![Cloud Architecture](A_diagram_depicts_a_cloud_network_architecture_on_.png)
+
+---
+
+## 🚀 How It Works
+
+1. **Terraform** creates a test AWS environment (VPC, subnets, route tables, security groups, etc.).
+2. **Python scripts** use `boto3` to scan live AWS resources.
+3. Findings are converted into a unified format (`SecurityFinding`) and reported via:
+   - Console output
+   - CSV report
+
+---
+
+## 📂 Terraform Stack
+
+Located in the `/terraform` folder, the configuration includes:
+
+- `main.tf`: VPC, public/private subnets, route tables, IGW/NAT, SGs
+- `variables.tf`: Reusable parameter values
+- `outputs.tf`: Key outputs like subnet/VPC IDs
+
+You can deploy it using:
+
+```bash
+cd terraform
+terraform init
+terraform apply
