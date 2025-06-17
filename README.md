@@ -26,7 +26,7 @@ Below are screenshots of the scan results produced by the analyzer.
 
 ![Security Findings Screenshot](docs/security_findings.png)
 
-![Live Network Topology Screenshot](docs/live_newtork_topology.png)
+![Live Network Topology Screenshot](docs/Live_newtork_topology.png)
 
 
 ---
